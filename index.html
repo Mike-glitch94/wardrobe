@@ -207,6 +207,8 @@ async function imp(file){if(!file)return;try{
   await db.colors.bulkAdd(co.map(r=>({id:+r[0],name:r[1],hex:r[2],group:r[3],order:+r[4]})));await db.clothes.bulkAdd(cl);await db.wants.bulkAdd(wl)});
  busy();alert(`服${cl.length}着を読み込みました`);go('list');
  }catch(e){busy();alert('読み込みに失敗しました。既存のデータは変更されていません。\n'+e.message)}}
+const VER=2;
+fetch(location.pathname,{cache:'no-store'}).then(r=>r.text()).then(t=>{const m=t.match(/const VER=(\d+)/);if(m&&+m[1]>VER&&!sessionStorage.rl){sessionStorage.rl=1;location.replace(location.pathname+'?v='+Date.now())}}).catch(()=>{});
 navigator.storage&&navigator.storage.persist&&navigator.storage.persist();
 seed().then(purge).then(()=>go('list'));
 </script></body></html>
