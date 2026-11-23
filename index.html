@@ -28,19 +28,20 @@ input,select,textarea{width:100%;padding:9px;border:1px solid var(--bd);border-r
 .p{background:var(--card);padding:18px;border-radius:12px;width:min(88vw,360px)}
 .sp{width:32px;height:32px;border:4px solid var(--bd);border-top-color:var(--ac);border-radius:50%;animation:s 1s linear infinite;margin:0 auto 10px}
 @keyframes s{to{transform:rotate(360deg)}}
-.seg{display:flex;gap:6px;margin-bottom:12px}.seg .b{flex:1}
+.seg{display:flex;gap:6px;margin-bottom:12px}.seg .b{flex:1;padding:9px 2px;font-size:13px}
 .bar{display:flex;gap:6px;overflow-x:auto}.bar select{width:auto;min-width:96px;margin-bottom:8px}
 </style></head><body>
 <main id="M"></main>
-<nav><button data-t="list" onclick="go('list')">一覧</button><button data-t="add" onclick="go('add')">登録</button><button data-t="manage" onclick="go('manage')">管理</button><button data-t="bk" onclick="go('bk')">バックアップ</button></nav>
+<nav><button data-t="list" onclick="go('list')">一覧</button><button data-t="add" onclick="go('add')">登録</button><button data-t="want" onclick="go('want')">欲しい</button><button data-t="manage" onclick="go('manage')">管理</button><button data-t="bk" onclick="go('bk')">バックアップ</button></nav>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/dexie/3.2.7/dexie.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 const db=new Dexie('wardrobe-db');
 db.version(1).stores({clothes:'++id,createdAt',cats:'++id,parentId,order',colors:'++id,order'});
+db.version(2).stores({wants:'++id,createdAt'});
 const $=s=>document.querySelector(s),M=$('#M');
 const E=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const norm=s=>(s||'').normalize('NFKC').toLowerCase().trim(),ord=(a,b)=>a.order-b.order,url=b=>b?URL.createObjectURL(b):'';
+const norm=s=>(s||'').normalize('NFKC').toLowerCase().trim(),ord=(a,b)=>a.order-b.order,url=b=>{if(!b)return'';const u=URL.createObjectURL(b);U.push(u);return u};let U=[];const rv=()=>{U.forEach(u=>URL.revokeObjectURL(u));U=[]},live=a=>a.filter(x=>!x.deletedAt),szl=c=>(c.sg&&c.size?{m:'メンズ',w:'レディース'}[c.sg]:'')+(c.size||'');
 const S={v:localStorage.v||'3',f:{cat:'',color:'',brand:''},sort:'new'};
 const G={n:'ニュートラル',b:'ベーシック',a:'アクセント'};
 const SEED={'トップス':'Tシャツ,シャツ,ポロシャツ,ニット・セーター,パーカー・スウェット,カットソー','ボトムス':'パンツ,デニム,ショートパンツ,スカート','アウター':'ジャケット,コート,ブルゾン,ダウン','スーツ・フォーマル':'スーツ上下,ベスト','ワンピース・セットアップ':'ワンピース,セットアップ','シューズ':'スニーカー,革靴,ブーツ,サンダル','バッグ':'ショルダー,トート,リュック,ビジネスバッグ','小物・その他':'靴下,帽子,マフラー・ストール,ベルト'};
@@ -49,24 +50,24 @@ const SZ={m:['S','M','L','XL','XXL','28','30','32','34','36','38'],w:['XS','S','
 async function seed(){if(await db.cats.count())return;let o=0;
  for(const[p,ch]of Object.entries(SEED)){const id=await db.cats.add({name:p,parentId:0,order:++o});for(const c of ch.split(','))await db.cats.add({name:c,parentId:id,order:++o})}
  await db.colors.bulkAdd(COL.split(',').map((s,i)=>{const h=s.indexOf('#');return{name:s.slice(0,h),hex:s.slice(h,h+7),group:G[s.slice(-1)],order:i+1}}))}
-function go(t){S.tab=t;document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t==t));({list:vList,add:()=>vForm(),manage:()=>vManage(),bk:vBackup})[t]()}
+function go(t){S.tab=t;document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t==t));({list:vList,add:()=>vForm(),want:vWant,manage:()=>vManage(),bk:vBackup})[t]()}
 function busy(t){let o=$('#bz');if(!t){o&&o.remove();return}if(!o){o=document.createElement('div');o.id='bz';o.className='m';document.body.append(o)}o.innerHTML=`<div class=p style="text-align:center"><div class=sp></div>${t}</div>`}
 function pickOne(title,opts){return new Promise(r=>{const m=document.createElement('div');m.className='m';m.innerHTML=`<div class=p><b>${title}</b><select>${opts.map(o=>`<option value=${o[0]}>${E(o[1])}`).join('')}</select><div class=row><button class="b s" id=n>キャンセル</button><button class=b id=y>決定</button></div></div>`;document.body.append(m);m.querySelector('#n').onclick=()=>{m.remove();r(null)};m.querySelector('#y').onclick=()=>{const v=m.querySelector('select').value;m.remove();r(v)}})}
 const brands=cs=>{const m={};[...cs].sort((a,b)=>a.createdAt-b.createdAt).forEach(c=>{if(!c.brand)return;const k=norm(c.brand);(m[k]=m[k]||{k,n:c.brand,c:0}).c++});return Object.values(m).sort((a,b)=>b.c-a.c)};
 async function proc(file){const b=await createImageBitmap(file);const dr=(w,h,sx,sy,sw,sh)=>{const cv=document.createElement('canvas');cv.width=w;cv.height=h;cv.getContext('2d').drawImage(b,sx,sy,sw,sh,0,0,w,h);return new Promise(r=>cv.toBlob(r,'image/jpeg',.8))};const k=Math.min(1,1024/Math.max(b.width,b.height)),m=Math.min(b.width,b.height);return[await dr(b.width*k|0,b.height*k|0,0,0,b.width,b.height),await dr(240,240,(b.width-m)/2,(b.height-m)/2,m,m)]}
 
 /* 一覧 */
-async function vList(){
- const[cs,cats,cols]=await Promise.all([db.clothes.toArray(),db.cats.toArray(),db.colors.toArray()]);
+async function vList(){rv();
+ const[cs0,cats,cols]=await Promise.all([db.clothes.toArray(),db.cats.toArray(),db.colors.toArray()]),cs=live(cs0);
  const cm=Object.fromEntries(cats.map(c=>[c.id,c])),km=Object.fromEntries(cols.map(c=>[c.id,c])),f=S.f;
  const a=cs.filter(c=>(!f.color||c.colorId==f.color)&&(!f.brand||norm(c.brand)==f.brand)&&(!f.cat||(f.cat[0]=='p'?cm[c.catId]?.parentId==f.cat.slice(1):c.catId==f.cat)));
  const[key,dir]={new:['createdAt',-1],dd:['date',-1],da:['date',1],pd:['price',-1],pa:['price',1]}[S.sort];
  a.sort((x,y)=>{const p=x[key]??'',q=y[key]??'',px=p==='',qx=q==='';if(px||qx)return px-qx;return(p>q?1:p<q?-1:0)*dir});
  const par=cats.filter(c=>!c.parentId).sort(ord),op=(v,l,c)=>`<option value="${v}" ${c==v?'selected':''}>${E(l)}`;
  const items=a.map(c=>{const k=km[c.colorId]||{},u=url(S.v=='2'?c.photo:c.thumb||c.photo);
-  if(S.v=='l')return`<div class=r onclick="vDetail(${c.id})"><img src="${u}"><div class=x>${E(cm[c.catId]?.name)} <span class=dot style="background:${k.hex}"></span> ${E(k.name)}<br><small>${[c.brand,c.size,c.price!=null?c.price.toLocaleString()+'円':''].filter(Boolean).map(E).join('・')}</small></div><small>${c.date||''}</small></div>`;
+  if(S.v=='l')return`<div class=r onclick="vDetail(${c.id})"><img src="${u}"><div class=x>${E(cm[c.catId]?.name)} <span class=dot style="background:${k.hex}"></span> ${E(k.name)}<br><small>${[c.brand,szl(c),c.price!=null?c.price.toLocaleString()+'円':''].filter(Boolean).map(E).join('・')}</small></div><small>${c.date||''}</small></div>`;
   return`<div onclick="vDetail(${c.id})"><img src="${u}"><span class=dot style="background:${k.hex}"></span></div>`}).join('');
- M.innerHTML=`<div class=bar>
+ M.innerHTML=`${bw()}<div class=bar>
  <select onchange="S.f.cat=this.value;vList()"><option value="">カテゴリ${par.map(p=>`<optgroup label="${E(p.name)}">${op('p'+p.id,p.name+'すべて',f.cat)}${cats.filter(c=>c.parentId==p.id).sort(ord).map(c=>op(c.id,c.name,f.cat)).join('')}</optgroup>`).join('')}</select>
  <select onchange="S.f.color=this.value;vList()"><option value="">色${cols.sort(ord).map(c=>op(c.id,c.name,f.color)).join('')}</select>
  <select onchange="S.f.brand=this.value;vList()"><option value="">ブランド${brands(cs).map(b=>op(b.k,b.n,f.brand)).join('')}</select></div>
@@ -77,55 +78,58 @@ async function vList(){
  ${f.cat||f.color||f.brand?'<p><button class="b s" onclick="S.f={cat:\'\',color:\'\',brand:\'\'};vList()">すべて解除</button></p>':''}`}
 
 /* 詳細 */
-async function vDetail(id){
+async function vDetail(id){rv();
  const c=await db.clothes.get(id),ca=await db.cats.get(c.catId),pa=ca&&ca.parentId?await db.cats.get(ca.parentId):null,k=await db.colors.get(c.colorId);
  const r=(l,v)=>v||v===0?`<p><span class=mut>${l}</span><br>${E(v).replace(/\n/g,'<br>')}</p>`:'';
  M.innerHTML=`<div class=row><button class="b s" onclick="go('list')">戻る</button><button class="b s" onclick="vForm(${id})">編集</button></div>
  <img src="${url(c.photo)}" style="width:100%;margin:10px 0;border-radius:8px">
  <h3>${E(ca?.name)} <span class=dot style="background:${k?.hex}"></span> ${E(k?.name)}</h3><p class=mut>${E(pa?.name)}</p>
- ${r('ブランド',c.brand)}${r('サイズ',c.size)}${r('購入日',c.date)}${r('購入価格',c.price!=null?c.price.toLocaleString()+'円':'')}${r('コメント',c.comment)}
+ ${r('ブランド',c.brand)}${r('サイズ',szl(c))}${r('購入日',c.date)}${r('購入価格',c.price!=null?c.price.toLocaleString()+'円':'')}${r('コメント',c.comment)}
  <p><button class="b d" onclick="delC(${id})">削除する</button></p>`}
-async function delC(id){if(confirm('この服を削除しますか?元に戻せません'))await db.clothes.delete(id),go('list')}
+async function delC(id){if(confirm('この服をゴミ箱に移しますか?2日間は復元できます'))await db.clothes.update(id,{deletedAt:Date.now()}),go('list')}
 
 /* 登録・編集 */
-function szt(k){$('#chips').innerHTML=SZ[k].map(s=>`<button type=button class="b s" onclick="$('#sz').value='${s}'">${s}</button>`).join('')}
+function sgui(){document.querySelectorAll('[data-g]').forEach(b=>b.classList.toggle('s',b.dataset.g!=S.sg))}
+function szt(k){S.sg=k=='s'?'':k;sgui();$('#chips').innerHTML=SZ[k].map(s=>`<button type=button class="b s" onclick="$('#sz').value='${s}'">${s}</button>`).join('')}
 function fcc(sel){const p=+$('#pc').value;$('#cc').innerHTML=S.cats.filter(x=>x.parentId==p).map(x=>`<option value=${x.id} ${x.id==sel?'selected':''}>${E(x.name)}`).join('');if(S.cats.find(x=>x.id==p)?.name=='シューズ')szt('s')}
-async function vForm(id){
- const c=id?await db.clothes.get(id):{},[cats,cols,cs]=await Promise.all([db.cats.toArray(),db.colors.toArray(),db.clothes.toArray()]);
- S.cats=cats.sort(ord);S.col=c.colorId||0;S.ph=null;S.old=c.photo;
+async function vForm(id,pre){rv();
+ const c=id?await db.clothes.get(id):pre||{},[cats,cols,cs0]=await Promise.all([db.cats.toArray(),db.colors.toArray(),db.clothes.toArray()]),cs=live(cs0);
+ S.cats=cats.sort(ord);S.col=c.colorId||0;S.ph=pre&&pre.photo?[pre.photo,pre.thumb]:null;S.old=c.photo;S.wid=pre&&pre.wid;S.sg=c.sg||'';
  const cur=S.cats.find(x=>x.id==c.catId);
  M.innerHTML=`<h3>${id?'服を編集':'服を登録'}</h3>
  <div id=pv>${c.photo?`<img src="${url(c.thumb||c.photo)}" height=100>`:''}</div>
  <input type=file accept="image/*" onchange="pick1(this.files[0])">
  <b>カテゴリ *</b><div class=row><select id=pc onchange=fcc()>${S.cats.filter(x=>!x.parentId).map(p=>`<option value=${p.id} ${cur&&cur.parentId==p.id?'selected':''}>${E(p.name)}`).join('')}</select><select id=cc></select></div>
  <b>色 *</b><div class=ch>${cols.sort(ord).map(k=>`<button type=button class="sw ${k.id==S.col?'on':''}" data-i=${k.id} title="${E(k.name)}" style="background:${k.hex}" onclick="S.col=${k.id};document.querySelectorAll('.sw').forEach(e=>e.classList.toggle('on',e.dataset.i==S.col))"></button>`).join('')}</div>
- <b>ブランド</b><input id=br list=bl value="${E(c.brand)}"><datalist id=bl>${brands(cs).map(b=>`<option value="${E(b.n)}">`).join('')}</datalist>
- <b>サイズ</b><div class=ch><button type=button class="b s" onclick="szt('m')">メンズ</button><button type=button class="b s" onclick="szt('w')">レディース</button><button type=button class="b s" onclick="szt('s')">靴</button></div>
+ <b>ブランド</b><div class=ch>${brands(cs).slice(0,30).map(b=>`<button type=button class="b s" data-b="${E(b.n)}" onclick="$('#br').value=this.dataset.b">${E(b.n)}</button>`).join('')}</div><input id=br value="${E(c.brand)}" placeholder="選ぶか、新しく入力">
+ <b>サイズ</b><div class=ch><button type=button class="b s" data-g=m onclick="szt('m')">メンズ</button><button type=button class="b s" data-g=w onclick="szt('w')">レディース</button><button type=button class="b s" data-g=s onclick="szt('s')">靴・区分なし</button></div>
  <div class=ch id=chips></div><input id=sz value="${E(c.size)}">
- <b>購入日</b><input id=dt type=date value="${c.date||''}"><b>購入価格(円)</b><input id=pr type=number inputmode=numeric value="${c.price??''}">
+ <b>購入日</b><div class=row><input id=dt type=date value="${c.date||''}"><button type=button class="b s" onclick="$('#dt').value=''">クリア</button></div><b>購入価格(円)</b><input id=pr type=number inputmode=numeric value="${c.price??''}">
  <b>コメント</b><textarea id=cm rows=3>${E(c.comment)}</textarea>
  <div class=row><button class="b s" onclick="${id?`vDetail(${id})`:"go('list')"}">キャンセル</button><button class=b onclick="save(${id||0})">保存</button></div>`;
- fcc(c.catId)}
+ fcc(c.catId);sgui()}
 async function pick1(f){if(!f)return;busy('画像を処理中…');S.ph=await proc(f);busy();$('#pv').innerHTML=`<img src="${url(S.ph[1])}" height=100>`}
 async function save(id){
  const v=x=>$(x).value,miss=[!(S.ph||S.old)&&'写真',!v('#cc')&&'カテゴリ',!S.col&&'色'].filter(Boolean);
  if(miss.length)return alert(miss.join('・')+'は必須です');
  let br=v('#br').trim();const all=(await db.clothes.orderBy('createdAt').toArray()).filter(x=>x.id!=id&&br&&norm(x.brand)==norm(br));if(all[0])br=all[0].brand;
  const old=id?await db.clothes.get(id):{};
- const d={catId:+v('#cc'),colorId:S.col,brand:br,size:v('#sz').trim(),date:v('#dt'),price:v('#pr')===''?null:+v('#pr'),comment:v('#cm'),photo:S.ph?S.ph[0]:old.photo,thumb:S.ph?S.ph[1]:old.thumb,createdAt:old.createdAt||Date.now()};
- if(id)await db.clothes.put({...d,id});else await db.clothes.add(d);
+ const d={catId:+v('#cc'),colorId:S.col,brand:br,size:v('#sz').trim(),sg:v('#sz').trim()?S.sg:'',date:v('#dt'),price:v('#pr')===''?null:+v('#pr'),comment:v('#cm'),photo:S.ph?S.ph[0]:old.photo,thumb:S.ph?S.ph[1]:old.thumb,createdAt:old.createdAt||Date.now()};
+ if(id)await db.clothes.put({...d,id});else await db.clothes.add(d);if(S.wid)await db.wants.delete(S.wid);
  go('list')}
 
 /* 管理 */
-async function vManage(t=S.mt||'cat'){S.mt=t;
- const[cats,cols,cs]=await Promise.all([db.cats.toArray(),db.colors.toArray(),db.clothes.toArray()]);
+async function vManage(t=S.mt||'cat'){S.mt=t;rv();
+ const[cats,cols,cs0]=await Promise.all([db.cats.toArray(),db.colors.toArray(),db.clothes.toArray()]),cs=live(cs0);
  const bt=(tb,id,i,n)=>`<button class="b s" ${i==0?'disabled':''} onclick="mv('${tb}',${id},-1)">▲</button><button class="b s" ${i==n-1?'disabled':''} onclick="mv('${tb}',${id},1)">▼</button><button class="b s" onclick="ed('${tb}',${id})">✎</button><button class="b d" onclick="del('${tb}',${id})">✕</button>`;
  let h='';
  if(t=='cat'){const par=cats.filter(c=>!c.parentId).sort(ord);
   h=par.map((p,i)=>{const ch=cats.filter(c=>c.parentId==p.id).sort(ord);return`<div class=r><b class=x>${E(p.name)}</b>${bt('cats',p.id,i,par.length)}</div>${ch.map((c,j)=>`<div class=r style="padding-left:18px"><span class=x>${E(c.name)}</span>${bt('cats',c.id,j,ch.length)}</div>`).join('')}<div style="padding:6px 0 6px 18px"><button class="b s" onclick="addCat(${p.id})">＋小分類</button></div>`}).join('')+`<p><button class=b onclick="addCat(0)">＋大分類</button></p>`}
  else if(t=='col'){const o=cols.sort(ord);h=o.map((c,i)=>`<div class=r><span class=dot style="background:${c.hex}"></span><span class=x>${E(c.name)}</span>${bt('colors',c.id,i,o.length)}</div>`).join('')+`<p><button class=b onclick="addCol()">＋色を追加</button></p>`}
+ else if(t=='cnt')h=cntHtml(cats,cs);
+ else if(t=='tr')h=await trashHtml();
  else h=brands(cs).map(b=>`<div class=r onclick="renBrand('${E(b.n).replace(/'/g,"\\'")}')"><span class=x>${E(b.n)}</span><span class=mut>${b.c}着 ✎</span></div>`).join('')||'<p class=mut>ブランドはまだありません。</p>';
- M.innerHTML=`<div class=seg>${[['cat','カテゴリ'],['col','色'],['br','ブランド']].map(o=>`<button class="b ${t==o[0]?'':'s'}" onclick="vManage('${o[0]}')">${o[1]}</button>`).join('')}</div>${h}`}
+ M.innerHTML=`<div class=seg>${[['cat','カテゴリ'],['col','色'],['br','ブランド'],['cnt','集計'],['tr','ゴミ箱']].map(o=>`<button class="b ${t==o[0]?'':'s'}" onclick="vManage('${o[0]}')">${o[1]}</button>`).join('')}</div>${h}`}
 async function mv(tb,id,d){const r=await db[tb].get(id),sib=(await db[tb].toArray()).filter(x=>tb=='colors'||x.parentId==r.parentId).sort(ord),i=sib.findIndex(x=>x.id==id),j=i+d;if(j<0||j>=sib.length)return;
  await db.transaction('rw',db[tb],async()=>{await db[tb].update(sib[i].id,{order:sib[j].order});await db[tb].update(sib[j].id,{order:sib[i].order})});vManage()}
 async function addCat(p){const n=(prompt(p?'小分類の名前':'大分類の名前')||'').trim();if(n)await db.cats.add({name:n,parentId:p,order:Date.now()});vManage()}
@@ -147,19 +151,45 @@ async function renBrand(b){const n=(prompt('新しいブランド名',b)||'').tr
  if(oth.length&&!confirm(`${b}(${hit.length-oth.length}着)を${oth[0].brand}(${oth.length}着)に統合します。続けますか?`))return;
  await db.transaction('rw',db.clothes,async()=>{for(const c of hit)await db.clothes.update(c.id,{brand:n})});vManage('br')}
 
+/* ゴミ箱・集計 */
+async function purge(){const t=Date.now()-1728e5;for(const tb of['clothes','wants'])for(const c of await db[tb].toArray())if(c.deletedAt&&c.deletedAt<t)await db[tb].delete(c.id)}
+const cntHtml=(cats,cs)=>{const n={};cs.forEach(c=>n[c.catId]=(n[c.catId]||0)+1);return cats.filter(c=>!c.parentId).sort(ord).map(p=>{const ch=cats.filter(c=>c.parentId==p.id).sort(ord);return`<div class=r><b class=x>${E(p.name)}</b><b>${ch.reduce((a,c)=>a+(n[c.id]||0),0)}着</b></div>`+ch.map(c=>`<div class=r style="padding-left:18px"><span class=x>${E(c.name)}</span><span class=mut>${n[c.id]||0}着</span></div>`).join('')}).join('')+`<p class=mut>合計 ${cs.length}着(ゴミ箱を除く)</p>`};
+async function trashHtml(){const[a,w,cats]=await Promise.all([db.clothes.toArray(),db.wants.toArray(),db.cats.toArray()]),cn=Object.fromEntries(cats.map(c=>[c.id,c.name]));
+ const L=c=>{const h=Math.max(1,Math.ceil((c.deletedAt+1728e5-Date.now())/36e5));return h>=24?Math.floor(h/24)+'日':h+'時間'};
+ const row=(tb,c,t)=>`<div class=r>${c.thumb||c.photo?`<img src="${url(c.thumb||c.photo)}">`:''}<div class=x>${E(t)}<br><small>あと約${L(c)}で完全に削除</small></div><button class="b s" onclick="restore('${tb}',${c.id})">復元</button></div>`;
+ return a.filter(c=>c.deletedAt).map(c=>row('clothes',c,'服 '+(cn[c.catId]||''))).concat(w.filter(c=>c.deletedAt).map(c=>row('wants',c,'欲しい '+(c.brand||c.memo||c.url||'')))).join('')||'<p class=mut>ゴミ箱は空です。</p>'}
+async function restore(tb,id){await db[tb].update(id,{deletedAt:null});vManage('tr')}
+const bw=()=>{const l=localStorage.last,d=l?(Date.now()-new Date(l))/864e5:999;return d>30?`<p style="color:#c33">${l?Math.floor(d)+'日間':'まだ一度も'}バックアップを取っていません。<a href=# onclick="go('bk');return false">バックアップへ</a></p>`:''};
+
+/* 欲しいもの */
+async function vWant(){rv();const w=live(await db.wants.toArray()).sort((a,b)=>b.createdAt-a.createdAt);
+ M.innerHTML=`<div class=row><h3 class=x style="margin:0">欲しいもの</h3><button class=b onclick="vWF()">＋追加</button></div>`+(w.map(c=>`<div class=r>${c.thumb?`<img src="${url(c.thumb)}">`:''}<div class=x>${E(c.brand||'(ブランド未入力)')}${c.price!=null?'・'+c.price.toLocaleString()+'円':''}<br><small>${E(c.memo)}</small>${c.url?`<br><a href="${E(c.url)}" target=_blank rel=noopener>リンクを開く</a>`:''}</div></div><div class=row style="margin-bottom:8px"><button class=b onclick="buy(${c.id})">購入した</button><button class="b s" onclick="vWF(${c.id})">編集</button><button class="b d" onclick="delW(${c.id})">削除</button></div>`).join('')||'<p class=mut>まだありません。スクショやURLを登録できます。</p>')}
+async function vWF(id){rv();const c=id?await db.wants.get(id):{},cs=live(await db.clothes.toArray());S.ph=null;S.old=c.photo;
+ M.innerHTML=`<h3>${id?'欲しいものを編集':'欲しいものを登録'}</h3><div id=pv>${c.thumb?`<img src="${url(c.thumb)}" height=100>`:''}</div><input type=file accept="image/*" onchange="pick1(this.files[0])"><b>URL</b><input id=wu type=url value="${E(c.url)}" placeholder="https://"><b>ブランド</b><input id=br list=bl value="${E(c.brand)}"><datalist id=bl>${brands(cs).map(b=>`<option value="${E(b.n)}">`).join('')}</datalist><b>価格(円)</b><input id=pr type=number inputmode=numeric value="${c.price??''}"><b>メモ</b><textarea id=cm rows=3>${E(c.memo)}</textarea><div class=row><button class="b s" onclick="go('want')">キャンセル</button><button class=b onclick="saveW(${id||0})">保存</button></div>`}
+async function saveW(id){const v=x=>$(x).value.trim(),u=v('#wu'),old=id?await db.wants.get(id):{};
+ if(u&&!/^https?:\/\//.test(u))return alert('URLは http:// か https:// から始めてください');if(!S.ph&&!old.photo&&!u)return alert('スクショかURLのどちらかは必要です');
+ const d={...old,url:u,brand:v('#br'),price:v('#pr')===''?null:+v('#pr'),memo:$('#cm').value,photo:S.ph?S.ph[0]:old.photo,thumb:S.ph?S.ph[1]:old.thumb,createdAt:old.createdAt||Date.now()};
+ if(id)await db.wants.put({...d,id});else await db.wants.add(d);go('want')}
+async function delW(id){if(confirm('ゴミ箱に移しますか?2日間は復元できます'))await db.wants.update(id,{deletedAt:Date.now()});vWant()}
+async function buy(id){const c=await db.wants.get(id);vForm(0,{wid:id,photo:c.photo,thumb:c.thumb,brand:c.brand,price:c.price,comment:c.memo,date:new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10)})}
+
 /* バックアップ */
-function vBackup(){M.innerHTML=`<h3>バックアップ</h3><p class=mut>データはこの端末のブラウザ内だけに保存されています。機種変更の前に必ず書き出してください。</p>
- <p>最後に書き出した日:${localStorage.last||'まだありません'}</p><p><button class=b onclick=exp()>バックアップを書き出す</button></p><hr>
+async function bkInfo(){const[a,w]=await Promise.all([db.clothes.toArray(),db.wants.toArray()]),la=live(a),lw=live(w),mb=n=>(n/1048576).toFixed(1)+'MB',sz=[...la,...lw].reduce((t,c)=>t+(c.photo?c.photo.size:0),0);let e='';
+ try{const q=await navigator.storage.estimate();e=`<p>ブラウザの使用量: ${mb(q.usage)} / 上限 ${mb(q.quota)}<br><span class=mut>サムネとゴミ箱を含む概算です</span></p>`}catch(x){}
+ return`<p>バックアップのサイズ目安: ${mb(sz)}<br><span class=mut>服${la.length}着・欲しいもの${lw.length}件の写真の合計(ゴミ箱を除く)</span></p>${e}`}
+async function vBackup(){const info=await bkInfo();M.innerHTML=`<h3>バックアップ</h3><p class=mut>データはこの端末のブラウザ内だけに保存されています。機種変更の前に必ず書き出してください。</p>
+ ${bw()}${info}<p>最後に書き出した日:${localStorage.last||'まだありません'}</p><p><button class=b onclick=exp()>バックアップを書き出す</button></p><hr>
  <p><b>バックアップから復元する</b><br><span class=mut>今のデータはすべて置き換わります。</span></p><input type=file accept=".zip" onchange="imp(this.files[0]);this.value=''">`}
 const csv=rows=>rows.map(r=>r.map(x=>{x=String(x??'');return/[",\n\r]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x}).join(',')).join('\r\n');
 function parseCSV(t){const r=[];let row=[],f='',q=0;for(let i=0;i<t.length;i++){const c=t[i];if(q){if(c=='"'){if(t[i+1]=='"'){f+='"';i++}else q=0}else f+=c}else if(c=='"')q=1;else if(c==',')row.push(f),f='';else if(c=='\n'){row.push(f);r.push(row);row=[];f=''}else if(c!='\r')f+=c}if(f||row.length){row.push(f);r.push(row)}return r}
 async function exp(){busy('書き出し中…');try{
- const z=new JSZip(),cs=await db.clothes.toArray(),cats=await db.cats.toArray(),cols=await db.colors.toArray();
+ const z=new JSZip(),cs=live(await db.clothes.toArray()),ws=live(await db.wants.toArray()),cats=await db.cats.toArray(),cols=await db.colors.toArray();
  const cn=Object.fromEntries(cats.map(c=>[c.id,c.name])),kn=Object.fromEntries(cols.map(c=>[c.id,c.name]));
- z.file('clothes.csv','\ufeff'+csv([['id','catId','catName','colorId','colorName','brand','size','date','price','comment','createdAt'],...cs.map(c=>[c.id,c.catId,cn[c.catId],c.colorId,kn[c.colorId],c.brand,c.size,c.date,c.price,c.comment,c.createdAt])]));
+ z.file('clothes.csv','\ufeff'+csv([['id','catId','catName','colorId','colorName','brand','size','date','price','comment','createdAt','sg'],...cs.map(c=>[c.id,c.catId,cn[c.catId],c.colorId,kn[c.colorId],c.brand,c.size,c.date,c.price,c.comment,c.createdAt,c.sg])]));
  z.file('categories.csv','\ufeff'+csv([['id','name','parentId','order'],...cats.map(c=>[c.id,c.name,c.parentId,c.order])]));
  z.file('colors.csv','\ufeff'+csv([['id','name','hex','group','order'],...cols.map(c=>[c.id,c.name,c.hex,c.group,c.order])]));
  cs.forEach(c=>z.file(`photos/${c.id}.jpg`,c.photo));
+ z.file('wants.csv','\ufeff'+csv([['id','url','brand','price','memo','createdAt'],...ws.map(c=>[c.id,c.url,c.brand,c.price,c.memo,c.createdAt])]));ws.forEach(c=>c.photo&&z.file(`photos/w${c.id}.jpg`,c.photo));
  const b=await z.generateAsync({type:'blob'},m=>busy(`書き出し中… ${m.percent|0}%`)),d=new Date().toISOString().slice(0,10),a=document.createElement('a');
  a.href=URL.createObjectURL(b);a.download=`wardrobe-backup-${d}.zip`;a.click();localStorage.last=d;
  }catch(e){alert('書き出しに失敗しました: '+e.message)}busy();vBackup()}
@@ -169,11 +199,14 @@ async function imp(file){if(!file)return;try{
  if(!confirm(`現在のデータ(服${cur}着)は削除され、ZIPの内容(服${cr.length}着)に置き換わります。続けますか?`))return;
  const cl=[];
  for(let i=0;i<cr.length;i++){busy(`読み込み中… ${i+1} / ${cr.length}着`);const r=cr[i],raw=await z.file(`photos/${r[0]}.jpg`).async('blob'),photo=new Blob([raw],{type:'image/jpeg'}),[,thumb]=await proc(photo);
-  cl.push({id:+r[0],catId:+r[1],colorId:+r[3],brand:r[5],size:r[6],date:r[7],price:r[8]===''?null:+r[8],comment:r[9],createdAt:+r[10],photo,thumb})}
- await db.transaction('rw',db.clothes,db.cats,db.colors,async()=>{await Promise.all([db.clothes.clear(),db.cats.clear(),db.colors.clear()]);
+  cl.push({id:+r[0],catId:+r[1],colorId:+r[3],brand:r[5],size:r[6],date:r[7],price:r[8]===''?null:+r[8],comment:r[9],createdAt:+r[10],sg:r[11]||'',photo,thumb})}
+ const wr=z.file('wants.csv')?parseCSV((await z.file('wants.csv').async('string')).replace(/^\ufeff/,'')).slice(1).filter(r=>r.length>1):[],wl=[];
+ for(const r of wr){const f=z.file(`photos/w${r[0]}.jpg`);let photo,thumb;if(f){photo=new Blob([await f.async('blob')],{type:'image/jpeg'});[,thumb]=await proc(photo)}wl.push({id:+r[0],url:r[1],brand:r[2],price:r[3]===''?null:+r[3],memo:r[4],createdAt:+r[5],photo,thumb})}
+ await db.transaction('rw',db.clothes,db.cats,db.colors,db.wants,async()=>{await Promise.all([db.clothes.clear(),db.cats.clear(),db.colors.clear(),db.wants.clear()]);
   await db.cats.bulkAdd(ct.map(r=>({id:+r[0],name:r[1],parentId:+r[2],order:+r[3]})));
-  await db.colors.bulkAdd(co.map(r=>({id:+r[0],name:r[1],hex:r[2],group:r[3],order:+r[4]})));await db.clothes.bulkAdd(cl)});
+  await db.colors.bulkAdd(co.map(r=>({id:+r[0],name:r[1],hex:r[2],group:r[3],order:+r[4]})));await db.clothes.bulkAdd(cl);await db.wants.bulkAdd(wl)});
  busy();alert(`服${cl.length}着を読み込みました`);go('list');
  }catch(e){busy();alert('読み込みに失敗しました。既存のデータは変更されていません。\n'+e.message)}}
-seed().then(()=>go('list'));
+navigator.storage&&navigator.storage.persist&&navigator.storage.persist();
+seed().then(purge).then(()=>go('list'));
 </script></body></html>
